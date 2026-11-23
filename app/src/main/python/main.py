@@ -1,33 +1,73 @@
+import json
+
 def get_dashboard():
-    return {
-        "name": "KARA OMEGA",
-        "version": "1.0",
-        "engine": "Python 3.10",
+    return json.dumps({
+        "version": "2.0",
+        "engine": "Python",
         "status": "READY",
         "total": 0,
         "valid": 0,
         "invalid": 0
-    }
-
+    })
 
 def parse_m3u(content):
-    results = []
-    current_name = "Unknown"
+    channels = []
+    current = {
+        "name": "Unknown",
+        "group": "Uncategorized",
+        "logo": ""
+    }
 
-    for line in content.splitlines():
-        line = line.strip()
+    for raw in content.splitlines():
+        line = raw.strip()
+
+        if not line:
+            continue
 
         if line.startswith("#EXTINF:"):
-            if "," in line:
-                current_name = line.split(",", 1)[1].strip()
-            else:
-                current_name = "Unknown"
+            current = {
+                "name": line.split(",", 1)[-1].strip()
+                        if "," in line else "Unknown",
+                "group": "Uncategorized",
+                "logo": ""
+            }
 
-        elif line and not line.startswith("#"):
-            results.append({
-                "name": current_name,
+            for part in line.split():
+                if part.startswith('group-title="'):
+                    current["group"] = part.split('"')[1]
+                elif part.startswith('tvg-logo="'):
+                    current["logo"] = part.split('"')[1]
+
+        elif line.startswith("#EXTGRP:"):
+            current["group"] = line.split(":", 1)[1].strip()
+
+        elif not line.startswith("#"):
+            channels.append({
+                "name": current["name"],
+                "group": current["group"],
+                "logo": current["logo"],
                 "url": line
             })
-            current_name = "Unknown"
 
-    return results
+            current = {
+                "name": "Unknown",
+                "group": "Uncategorized",
+                "logo": ""
+            }
+
+    return json.dumps({
+        "total": len(channels),
+        "channels": channels
+    }, ensure_ascii=False)
+
+def search_channels(content, query):
+    data = json.loads(parse_m3u(content))
+    q = query.lower()
+
+    results = [
+        item for item in data["channels"]
+        if q in item["name"].lower()
+        or q in item["group"].lower()
+    ]
+
+    return json.dumps(results, ensure_ascii=False)
